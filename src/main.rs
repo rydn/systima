@@ -1,24 +1,15 @@
 //! systima — a retro-cyberpunk terminal system monitor.
 
-mod app;
-mod bench;
-mod format;
-mod history;
-mod input;
-mod sampler;
-mod snapshot;
-mod theme;
-mod ui;
-
 use std::io;
 use std::sync::mpsc::{Receiver, channel, sync_channel};
 use std::time::Duration;
 
 use ratatui::DefaultTerminal;
 
-use app::App;
-use sampler::{Cmd, Msg, SamplerConfig};
-use theme::{Palette, Theme};
+use systima::app::App;
+use systima::sampler::{self, Cmd, Msg, SamplerConfig};
+use systima::theme::{self, Palette, Theme};
+use systima::{bench, ui};
 
 struct Args {
     interval: Duration,
@@ -26,6 +17,7 @@ struct Args {
     truecolor: bool,
     bench: Option<usize>,
     size: (u16, u16),
+    dump: bool,
 }
 
 const USAGE: &str = "\
@@ -39,6 +31,7 @@ OPTIONS:
       --no-truecolor     use the 256-colour palette (auto-detected from COLORTERM)
       --bench <N>        headless: render N frames off-screen and print timings
       --size WxH         off-screen terminal size for --bench [default: 200x60]
+      --dump             with --bench: print the last rendered frame as text
   -h, --help             show this help
   -V, --version          show version
 ";
@@ -67,6 +60,7 @@ fn parse_args() -> Result<Args, String> {
         truecolor: theme::env_truecolor(),
         bench: None,
         size: (200, 60),
+        dump: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -89,6 +83,7 @@ fn parse_args() -> Result<Args, String> {
                 args.palette =
                     Palette::from_name(&v).ok_or_else(|| format!("unknown theme: {v}"))?;
             }
+            "--dump" => args.dump = true,
             "--no-truecolor" => args.truecolor = false,
             "--truecolor" => args.truecolor = true,
             "--bench" => {
@@ -130,17 +125,10 @@ fn main() -> io::Result<()> {
         interval,
         cmd_tx.clone(),
     );
-    let sampler = sampler::spawn_sampler(
-        SamplerConfig {
-            interval,
-            ..SamplerConfig::default()
-        },
-        tx.clone(),
-        cmd_rx,
-    );
+    let sampler = sampler::spawn_sampler(SamplerConfig { interval }, tx.clone(), cmd_rx);
 
     let result = if let Some(n) = args.bench {
-        bench::run(app, &rx, n, args.size.0, args.size.1)
+        bench::run(app, &rx, n, args.size.0, args.size.1, args.dump)
     } else {
         let mut app = app;
         ratatui::run(|terminal| {
@@ -159,8 +147,7 @@ fn main() -> io::Result<()> {
 /// state changed. The thread is fully idle between events.
 fn run_loop(terminal: &mut DefaultTerminal, app: &mut App, rx: &Receiver<Msg>) -> io::Result<()> {
     terminal.draw(|f| ui::draw(f, app))?;
-    loop {
-        let Ok(first) = rx.recv() else { break };
+    while let Ok(first) = rx.recv() {
         let mut dirty = app.handle(first);
         while let Ok(more) = rx.try_recv() {
             dirty |= app.handle(more);

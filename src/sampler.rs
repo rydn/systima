@@ -11,11 +11,31 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use sysinfo::{
-    Components, CpuRefreshKind, Disks, MemoryRefreshKind, Networks, Pid, ProcessRefreshKind,
-    ProcessStatus, ProcessesToUpdate, RefreshKind, Signal, System, Uid, UpdateKind, Users,
+    Components, CpuRefreshKind, DiskRefreshKind, Disks, MemoryRefreshKind, Networks, Pid,
+    ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, RefreshKind, Signal, System, Uid,
+    UpdateKind, Users,
 };
 
 use crate::snapshot::{DiskInfo, HostInfo, Iface, ProcInfo, ProcState, Snapshot, Temp};
+
+/// Set `SYSTIMA_PROFILE=1` (with `--bench`) to print per-stage sampler timings to stderr.
+fn profiling() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("SYSTIMA_PROFILE").is_some())
+}
+
+macro_rules! stage {
+    ($name:expr, $t:ident) => {
+        if profiling() {
+            eprintln!(
+                "  {:<10} {:>8.2}ms",
+                $name,
+                $t.elapsed().as_secs_f64() * 1000.0
+            );
+            $t = Instant::now();
+        }
+    };
+}
 
 /// Everything the UI thread can receive.
 pub enum Msg {
@@ -35,18 +55,37 @@ pub enum Cmd {
 #[derive(Debug, Clone, Copy)]
 pub struct SamplerConfig {
     pub interval: Duration,
-    /// Refresh the full process list every N ticks.
-    pub procs_every: u32,
-    /// Refresh temperatures every N ticks.
-    pub temps_every: u32,
 }
 
 impl Default for SamplerConfig {
     fn default() -> Self {
         Self {
             interval: Duration::from_secs(1),
-            procs_every: 2,
-            temps_every: 5,
+        }
+    }
+}
+
+/// Wall-clock periods for the expensive refreshes, independent of the
+/// sampling interval: faster sampling must not multiply their cost.
+pub const PROCS_PERIOD: Duration = Duration::from_millis(2000);
+pub const TEMPS_PERIOD: Duration = Duration::from_secs(30);
+pub const STORAGE_PERIOD: Duration = Duration::from_secs(10);
+
+#[derive(Debug, Clone, Copy)]
+struct Cadence {
+    procs: u64,
+    temps: u64,
+    storage: u64,
+}
+
+impl Cadence {
+    fn for_interval(interval: Duration) -> Cadence {
+        let every =
+            |p: Duration| (p.as_millis() / interval.as_millis().max(1)).clamp(1, 120) as u64;
+        Cadence {
+            procs: every(PROCS_PERIOD),
+            temps: every(TEMPS_PERIOD),
+            storage: every(STORAGE_PERIOD),
         }
     }
 }
@@ -80,14 +119,13 @@ pub fn host_info() -> HostInfo {
         )
         .trim()
         .to_string(),
-        kernel: System::kernel_version().unwrap_or_default(),
         arch: System::cpu_arch(),
         ncpu: sys.cpus().len().max(1),
     }
 }
 
 struct Sampler {
-    cfg: SamplerConfig,
+    cadence: Cadence,
     sys: System,
     networks: Networks,
     disks: Disks,
@@ -124,7 +162,7 @@ impl Sampler {
         sys.refresh_processes_specifics(ProcessesToUpdate::All, true, PROC_KIND());
         let own_pid = sysinfo::get_current_pid().ok();
         Self {
-            cfg,
+            cadence: Cadence::for_interval(cfg.interval),
             sys,
             networks: Networks::new_with_refreshed_list(),
             disks: Disks::new_with_refreshed_list(),
@@ -185,7 +223,6 @@ impl Sampler {
             }
             out.push(ProcInfo {
                 pid: pid.as_u32(),
-                parent: p.parent().map(|p| p.as_u32()),
                 name: p.name().to_string_lossy().into_owned(),
                 user,
                 cpu: p.cpu_usage(),
@@ -198,15 +235,18 @@ impl Sampler {
         self.procs_running = running;
     }
 
+    #[allow(unused_assignments)]
     fn sample(&mut self) -> Snapshot {
         let now = Instant::now();
         let dt = now.duration_since(self.last).as_secs_f32().max(1e-3);
         self.last = now;
 
+        let mut t = Instant::now();
         self.sys.refresh_cpu_usage();
         self.sys.refresh_memory();
+        stage!("cpu+mem", t);
 
-        let procs_tick = self.tick % u64::from(self.cfg.procs_every.max(1)) == 0;
+        let procs_tick = self.tick % self.cadence.procs == 0;
         if procs_tick {
             self.refresh_procs();
         } else if let Some(pid) = self.own_pid {
@@ -216,21 +256,20 @@ impl Sampler {
                 PROC_KIND(),
             );
         }
-        if self.tick % u64::from(self.cfg.temps_every.max(1)) == 0 {
+        stage!("procs", t);
+        if self.tick % self.cadence.temps == 0 {
             self.components.refresh(true);
             self.temps.clear();
             for c in self.components.iter() {
                 if let Some(t) = c.temperature() {
                     if t.is_finite() && t > 0.0 {
-                        self.temps.push(Temp {
-                            label: c.label().to_string(),
-                            celsius: t,
-                        });
+                        self.temps.push(Temp { celsius: t });
                     }
                 }
             }
         }
 
+        stage!("temps", t);
         // Network: cumulative totals → bytes/s, guarding against counter resets.
         self.networks.refresh(true);
         let mut net: Vec<Iface> = Vec::with_capacity(self.networks.len());
@@ -265,8 +304,17 @@ impl Sampler {
         }
         net.sort_by(|a, b| a.name.cmp(&b.name));
 
+        stage!("net", t);
         // Disks: `usage()` is already a delta since the previous refresh.
-        self.disks.refresh(true);
+        if self.tick % self.cadence.storage == 0 {
+            self.disks.refresh_specifics(
+                true,
+                DiskRefreshKind::nothing().with_io_usage().with_storage(),
+            );
+        } else {
+            self.disks
+                .refresh_specifics(false, DiskRefreshKind::nothing().with_io_usage());
+        }
         let (mut rd, mut wr) = (0u64, 0u64);
         let mut disks: Vec<DiskInfo> = Vec::new();
         for d in self.disks.list() {
@@ -292,6 +340,7 @@ impl Sampler {
                 .then(a.mount.cmp(&b.mount))
         });
 
+        stage!("disks", t);
         let (self_cpu, self_rss) = self
             .own_pid
             .and_then(|p| self.sys.process(p))
@@ -302,8 +351,6 @@ impl Sampler {
         self.tick += 1;
 
         Snapshot {
-            at: now,
-            dt,
             cpu_total: self.sys.global_cpu_usage(),
             cores: self.sys.cpus().iter().map(|c| c.cpu_usage()).collect(),
             freq_mhz: self.sys.cpus().first().map(|c| c.frequency()).unwrap_or(0),
@@ -321,7 +368,6 @@ impl Sampler {
             temps: self.temps.clone(),
             procs: self.procs.clone(),
             procs_running: self.procs_running,
-            threads_hint: 0,
             self_cpu,
             self_rss,
             sample_cost: Duration::ZERO,
@@ -375,6 +421,8 @@ fn run_sampler(cfg: SamplerConfig, tx: SyncSender<Msg>, cmd_rx: Receiver<Cmd>) {
                 }
                 Ok(Cmd::SetInterval(d)) => {
                     interval = d.clamp(MIN_INTERVAL, MAX_INTERVAL);
+                    s.cadence = Cadence::for_interval(interval);
+                    s.tick = 0;
                     next = Instant::now() + MIN_INTERVAL.max(interval / 4);
                 }
                 Ok(Cmd::Shutdown) | Err(RecvTimeoutError::Disconnected) => return,
@@ -425,6 +473,16 @@ mod tests {
     }
 
     #[test]
+    fn cadence_tracks_wall_clock_periods() {
+        let c = Cadence::for_interval(Duration::from_millis(1000));
+        assert_eq!((c.procs, c.temps, c.storage), (2, 30, 10));
+        let c = Cadence::for_interval(Duration::from_millis(250));
+        assert_eq!((c.procs, c.temps, c.storage), (8, 120, 40));
+        let c = Cadence::for_interval(Duration::from_secs(5));
+        assert_eq!((c.procs, c.temps, c.storage), (1, 6, 2));
+    }
+
+    #[test]
     fn sampler_produces_plausible_snapshot() {
         let mut s = Sampler::new(SamplerConfig::default());
         std::thread::sleep(MIN_INTERVAL);
@@ -433,6 +491,6 @@ mod tests {
         assert!(!snap.cores.is_empty());
         assert!(!snap.procs.is_empty());
         assert!(snap.procs.iter().any(|p| p.pid == std::process::id()));
-        assert!(snap.dt > 0.0);
+        assert!(snap.sample_cost == Duration::ZERO);
     }
 }

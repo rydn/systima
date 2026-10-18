@@ -240,11 +240,26 @@ fn draw_net(buf: &mut Buffer, app: &mut App, area: Rect) {
     let theme = app.theme;
     let iface = app.iface.as_deref().unwrap_or("all");
     let n = app.snap.as_ref().map(|s| s.net.len()).unwrap_or(0);
+    let (rx_total, tx_total) = app
+        .snap
+        .as_ref()
+        .map(|s| {
+            s.net
+                .iter()
+                .filter(|i| app.iface.as_deref().is_none_or(|name| name == i.name))
+                .fold((0u64, 0u64), |(r, t), i| (r + i.rx_total, t + i.tx_total))
+        })
+        .unwrap_or((0, 0));
+    let mut rx_s = String::with_capacity(8);
+    let mut tx_s = String::with_capacity(8);
+    format::bytes(&mut rx_s, rx_total);
+    format::bytes(&mut tx_s, tx_total);
     let title = vec![
         Span::styled("NET", theme.title_style()),
         Span::styled(" ▸ ", theme.muted_style()),
         Span::styled(iface, theme.accent_style()),
-        Span::styled(format!(" ({n} ifaces)"), theme.muted_style()),
+        Span::styled(format!(" ({n} ifaces) ▸ Σ "), theme.muted_style()),
+        Span::styled(format!("▼{rx_s} ▲{tx_s}"), theme.muted_style()),
     ];
     let block = panel(&theme, title, app.focus == Focus::Net);
     let inner = block.inner(area);

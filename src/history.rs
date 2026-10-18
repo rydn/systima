@@ -41,11 +41,6 @@ impl<T: Copy + Default> Ring<T> {
         self.len == 0
     }
 
-    #[inline]
-    pub fn capacity(&self) -> usize {
-        self.buf.len()
-    }
-
     pub fn clear(&mut self) {
         self.head = 0;
         self.len = 0;
@@ -115,7 +110,6 @@ mod tests {
             r.push(v);
         }
         assert_eq!(r.len(), 3);
-        assert_eq!(r.capacity(), 3);
         assert_eq!(r.iter_last(3).collect::<Vec<_>>(), vec![5, 6, 7]);
         assert_eq!(r.iter_last(2).collect::<Vec<_>>(), vec![6, 7]);
         assert_eq!(r.iter_last(0).count(), 0);

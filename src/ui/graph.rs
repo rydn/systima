@@ -31,7 +31,7 @@ pub fn label(out: &mut String, unit: Unit, v: u64) {
     match unit {
         Unit::Rate => format::rate(out, v),
         Unit::Bytes => format::bytes(out, v),
-        Unit::Percent => format::pct_tenths(out, v),
+        Unit::Percent => format::pct_whole(out, v),
     }
 }
 
@@ -54,6 +54,7 @@ impl<'a> HistoryGraph<'a> {
         }
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn gutter(mut self, on: bool) -> Self {
         self.gutter = on;
         self

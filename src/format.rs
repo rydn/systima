@@ -46,6 +46,12 @@ pub fn pct_tenths(out: &mut String, tenths: u64) {
     }
 }
 
+/// Tenths of a percent → whole percent `42%` (axis labels).
+pub fn pct_whole(out: &mut String, tenths: u64) {
+    out.clear();
+    let _ = write!(out, "{}%", tenths / 10);
+}
+
 /// Seconds → `3d 04:12:33` or `04:12:33`.
 pub fn duration(out: &mut String, secs: u64) {
     out.clear();

@@ -3,7 +3,7 @@
 //! depends on the collector.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcState {
@@ -31,7 +31,6 @@ impl ProcState {
 #[derive(Debug, Clone)]
 pub struct ProcInfo {
     pub pid: u32,
-    pub parent: Option<u32>,
     pub name: String,
     pub user: Arc<str>,
     /// Percent of one core, summed over cores (sysinfo semantics; may exceed 100).
@@ -58,18 +57,13 @@ pub struct DiskInfo {
     pub available: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Temp {
-    pub label: String,
     pub celsius: f32,
 }
 
 #[derive(Debug, Clone)]
 pub struct Snapshot {
-    pub at: Instant,
-    /// Seconds since the previous snapshot.
-    pub dt: f32,
-
     pub cpu_total: f32,
     pub cores: Vec<f32>,
     pub freq_mhz: u64,
@@ -91,7 +85,6 @@ pub struct Snapshot {
 
     pub procs: Arc<[ProcInfo]>,
     pub procs_running: usize,
-    pub threads_hint: usize,
 
     pub self_cpu: f32,
     pub self_rss: u64,
@@ -104,7 +97,6 @@ pub struct Snapshot {
 pub struct HostInfo {
     pub hostname: String,
     pub os: String,
-    pub kernel: String,
     pub arch: String,
     pub ncpu: usize,
 }

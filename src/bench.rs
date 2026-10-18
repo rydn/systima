@@ -18,6 +18,7 @@ pub fn run(
     frames: usize,
     width: u16,
     height: u16,
+    dump: bool,
 ) -> io::Result<()> {
     let mut terminal =
         Terminal::new(TestBackend::new(width, height)).expect("test backend is infallible");
@@ -42,6 +43,9 @@ pub fn run(
         }
     }
     let wall = started.elapsed();
+    if dump {
+        println!("{}", render_text(terminal.backend()));
+    }
     report("frame render", &mut draw_times);
     report("sampler tick", &mut sample_times);
     let procs = app.procs.src.len();
@@ -53,7 +57,7 @@ pub fn run(
     Ok(())
 }
 
-fn report(name: &str, v: &mut Vec<Duration>) {
+fn report(name: &str, v: &mut [Duration]) {
     if v.is_empty() {
         println!("{name}: no samples");
         return;
@@ -74,4 +78,17 @@ fn report(name: &str, v: &mut Vec<Duration>) {
 
 fn ms(d: Duration) -> f64 {
     d.as_secs_f64() * 1000.0
+}
+
+/// The backend's buffer as plain text, one line per row.
+pub fn render_text(backend: &TestBackend) -> String {
+    let buf = backend.buffer();
+    let mut out = String::with_capacity((buf.area.width as usize + 1) * buf.area.height as usize);
+    for y in 0..buf.area.height {
+        for x in 0..buf.area.width {
+            out.push_str(buf[(x, y)].symbol());
+        }
+        out.push('\n');
+    }
+    out
 }

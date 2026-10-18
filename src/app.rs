@@ -310,11 +310,11 @@ impl App {
             row.pid.clear();
             let _ = write!(row.pid, "{}", p.pid);
             format::pct_tenths(&mut row.cpu, (row.cpu_val.max(0.0) * 10.0) as u64);
-            let mem_pct_tenths = if mem_total > 0 {
-                p.mem.saturating_mul(1000) / mem_total
-            } else {
-                0
-            };
+            let mem_pct_tenths = p
+                .mem
+                .saturating_mul(1000)
+                .checked_div(mem_total)
+                .unwrap_or(0);
             format::pct_tenths(&mut row.mem_pct, mem_pct_tenths);
             format::bytes(&mut row.rss, p.mem);
             format::short_duration(&mut row.time, p.run_time);
@@ -561,90 +561,9 @@ fn ci_cmp(a: &str, b: &str) -> std::cmp::Ordering {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::*;
-    use crate::snapshot::ProcState;
-    use std::sync::mpsc;
-
-    pub fn fake_proc(pid: u32, name: &str, cpu: f32, mem: u64) -> ProcInfo {
-        ProcInfo {
-            pid,
-            parent: None,
-            name: name.to_string(),
-            user: Arc::from("ryan"),
-            cpu,
-            mem,
-            state: ProcState::Sleep,
-            run_time: pid as u64 * 7,
-        }
-    }
-
-    pub fn fake_snapshot(procs: Vec<ProcInfo>) -> Box<Snapshot> {
-        Box::new(Snapshot {
-            at: Instant::now(),
-            dt: 1.0,
-            cpu_total: 42.0,
-            cores: vec![10.0, 20.0, 30.0, 40.0],
-            freq_mhz: 3200,
-            mem_total: 16 << 30,
-            mem_used: 8 << 30,
-            mem_available: 8 << 30,
-            swap_total: 2 << 30,
-            swap_used: 1 << 20,
-            load: [1.0, 0.5, 0.25],
-            uptime: 90_000,
-            net: vec![
-                crate::snapshot::Iface {
-                    name: "en0".into(),
-                    rx_bps: 1000,
-                    tx_bps: 500,
-                    rx_total: 0,
-                    tx_total: 0,
-                },
-                crate::snapshot::Iface {
-                    name: "en1".into(),
-                    rx_bps: 10,
-                    tx_bps: 5,
-                    rx_total: 0,
-                    tx_total: 0,
-                },
-            ],
-            disk_read_bps: 4096,
-            disk_write_bps: 2048,
-            disks: vec![crate::snapshot::DiskInfo {
-                mount: "/".into(),
-                total: 1 << 40,
-                available: 1 << 39,
-            }],
-            temps: vec![],
-            procs: Arc::from(procs),
-            procs_running: 1,
-            threads_hint: 0,
-            self_cpu: 0.3,
-            self_rss: 12 << 20,
-            sample_cost: Duration::from_millis(1),
-        })
-    }
-
-    pub fn test_app() -> (App, mpsc::Receiver<Cmd>) {
-        let (tx, rx) = mpsc::channel();
-        let host = HostInfo {
-            hostname: "test".into(),
-            os: "TestOS".into(),
-            kernel: "1.0".into(),
-            arch: "arm64".into(),
-            ncpu: 4,
-        };
-        (
-            App::new(
-                host,
-                Theme::new(Palette::Cyberpunk, true),
-                Duration::from_secs(1),
-                tx,
-            ),
-            rx,
-        )
-    }
+    use crate::fixtures::{fake_proc, fake_snapshot, test_app};
 
     fn names(app: &App) -> Vec<&str> {
         (0..app.procs.order.len())

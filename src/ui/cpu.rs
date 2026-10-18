@@ -58,7 +58,7 @@ pub fn draw(buf: &mut Buffer, app: &App, area: Rect) {
             0
         };
         if bar_w > 0 {
-            let cell_w = 2 + 1 + bar_w + 1 + 4;
+            let cell_w = 2 + 1 + bar_w + 1 + 4 + 1;
             left_w = (cols * cell_w) as u16;
             let mut s = String::with_capacity(8);
             for (i, &usage) in cores.iter().enumerate() {
