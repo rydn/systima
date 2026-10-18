@@ -41,6 +41,16 @@
       ]
     },
     {
+      "name": "readme",
+      "kind": "path",
+      "addedAt": "2026-10-18T15:13:09.852Z",
+      "path": ".",
+      "glob": [
+        "README.md"
+      ],
+      "title": "project readme and top-level guides"
+    },
+    {
       "name": "sysinfo",
       "kind": "url",
       "addedAt": "2026-10-18T15:12:21.347Z",

@@ -483,6 +483,24 @@ mod tests {
     }
 
     #[test]
+    fn kill_terminates_a_child_process() {
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn sleep");
+        let pid = child.id();
+        let mut s = Sampler::new(SamplerConfig::default());
+        std::thread::sleep(MIN_INTERVAL);
+        let _ = s.sample();
+        let msg = s.kill(pid, false);
+        assert!(msg.starts_with("sent Term"), "{msg}");
+        let status = child.wait().expect("wait");
+        assert!(!status.success());
+        let msg = s.kill(pid, true);
+        assert!(msg.contains("not found") || msg.contains("failed"), "{msg}");
+    }
+
+    #[test]
     fn sampler_produces_plausible_snapshot() {
         let mut s = Sampler::new(SamplerConfig::default());
         std::thread::sleep(MIN_INTERVAL);
