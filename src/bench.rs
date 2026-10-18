@@ -9,6 +9,7 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
 use crate::app::App;
+use crate::format::bytes as systima_fmt_bytes;
 use crate::sampler::Msg;
 use crate::ui;
 
@@ -48,6 +49,14 @@ pub fn run(
     }
     report("frame render", &mut draw_times);
     report("sampler tick", &mut sample_times);
+    if let Some(snap) = app.snap.as_deref() {
+        let mut rss = String::new();
+        systima_fmt_bytes(&mut rss, snap.self_rss);
+        println!(
+            "self usage:   cpu {:.2}% of one core   rss {rss}",
+            snap.self_cpu
+        );
+    }
     let procs = app.procs.src.len();
     println!(
         "processes: {procs}   history: {} samples   wall: {:.1}s",

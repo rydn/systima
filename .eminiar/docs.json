@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "name": "crossterm",
+      "kind": "url",
+      "addedAt": "2026-10-18T15:12:21.347Z",
+      "urls": [
+        "https://docs.rs/crossterm/latest/crossterm/",
+        "https://docs.rs/crossterm/latest/crossterm/event/index.html"
+      ],
+      "title": "crossterm 0.29 API docs",
+      "crawl": {
+        "depth": 0
+      },
+      "tags": [
+        "rust",
+        "terminal"
+      ]
+    },
+    {
+      "name": "ratatui",
+      "kind": "url",
+      "addedAt": "2026-10-18T15:12:21.347Z",
+      "urls": [
+        "https://docs.rs/ratatui/latest/ratatui/",
+        "https://docs.rs/ratatui/latest/ratatui/widgets/index.html",
+        "https://docs.rs/ratatui/latest/ratatui/buffer/struct.Buffer.html",
+        "https://docs.rs/ratatui/latest/ratatui/widgets/struct.Block.html",
+        "https://docs.rs/ratatui/latest/ratatui/layout/struct.Layout.html",
+        "https://docs.rs/ratatui/latest/ratatui/style/index.html",
+        "https://github.com/ratatui/ratatui/blob/main/BREAKING-CHANGES.md"
+      ],
+      "title": "ratatui 0.30 API docs",
+      "crawl": {
+        "depth": 0
+      },
+      "tags": [
+        "rust",
+        "tui"
+      ]
+    },
+    {
+      "name": "sysinfo",
+      "kind": "url",
+      "addedAt": "2026-10-18T15:12:21.347Z",
+      "urls": [
+        "https://docs.rs/sysinfo/latest/sysinfo/",
+        "https://docs.rs/sysinfo/latest/sysinfo/struct.System.html",
+        "https://docs.rs/sysinfo/latest/sysinfo/struct.Process.html",
+        "https://docs.rs/sysinfo/latest/sysinfo/struct.ProcessRefreshKind.html",
+        "https://docs.rs/sysinfo/latest/sysinfo/struct.Networks.html",
+        "https://docs.rs/sysinfo/latest/sysinfo/struct.Disks.html",
+        "https://docs.rs/sysinfo/latest/sysinfo/struct.DiskRefreshKind.html",
+        "https://docs.rs/sysinfo/latest/sysinfo/struct.Components.html"
+      ],
+      "title": "sysinfo 0.39 API docs",
+      "crawl": {
+        "depth": 0
+      },
+      "tags": [
+        "rust",
+        "metrics"
+      ]
+    }
+  ]
+}
