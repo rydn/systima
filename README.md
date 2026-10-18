@@ -39,6 +39,22 @@ ring buffers, and allocation budgets are enforced by tests.
 
 ## Install
 
+Prebuilt binaries are attached to every push on `main` as the rolling
+[`latest`](https://github.com/rydn/systima/releases/tag/latest) pre-release, and to
+[versioned releases](https://github.com/rydn/systima/releases) for `v*` tags.
+Targets: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`,
+`aarch64-unknown-linux-gnu`; each tarball has a `.sha256` next to it.
+
+```sh
+# macOS Apple Silicon
+curl -L https://github.com/rydn/systima/releases/download/latest/systima-aarch64-apple-darwin.tar.gz | tar xz
+./systima-aarch64-apple-darwin/systima
+```
+
+macOS Gatekeeper may block the unsigned binary on first run: `xattr -d com.apple.quarantine systima`.
+
+From source:
+
 ```sh
 cargo install --path .
 # or
