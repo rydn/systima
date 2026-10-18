@@ -220,6 +220,9 @@ impl Theme {
             .fg(self.color(self.title))
             .add_modifier(Modifier::BOLD)
     }
+    pub fn text_style(&self) -> Style {
+        Style::new().fg(self.color(self.text))
+    }
     pub fn muted_style(&self) -> Style {
         Style::new().fg(self.color(self.muted))
     }

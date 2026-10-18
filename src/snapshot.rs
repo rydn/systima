@@ -3,7 +3,7 @@
 //! depends on the collector.
 
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcState {
@@ -95,6 +95,8 @@ pub struct Snapshot {
 
     pub self_cpu: f32,
     pub self_rss: u64,
+    /// How long the sampler spent producing this snapshot.
+    pub sample_cost: Duration,
 }
 
 /// Static facts gathered once at start-up.

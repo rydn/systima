@@ -324,6 +324,7 @@ impl Sampler {
             threads_hint: 0,
             self_cpu,
             self_rss,
+            sample_cost: Duration::ZERO,
         }
     }
 
@@ -380,7 +381,9 @@ fn run_sampler(cfg: SamplerConfig, tx: SyncSender<Msg>, cmd_rx: Receiver<Cmd>) {
                 Err(RecvTimeoutError::Timeout) => break,
             }
         }
-        let snap = s.sample();
+        let t0 = Instant::now();
+        let mut snap = s.sample();
+        snap.sample_cost = t0.elapsed();
         if tx.send(Msg::Snapshot(Box::new(snap))).is_err() {
             return;
         }
